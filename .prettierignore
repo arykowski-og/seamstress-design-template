@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+storybook-static/
+
+# Cache and temp files
+.cache/
+.temp/
+.tmp/
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Environment files
+.env*
+
+# Generated files
+*.generated.*
+*.min.js
+*.min.css
+
+# Vendor files
+vendor/
+
+# Documentation
+docs/api/
+
+# Large data files
+src/services/knowledge/ExampleDocuments.ts

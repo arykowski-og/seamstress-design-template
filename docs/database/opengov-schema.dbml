@@ -1,0 +1,1052 @@
+/* =========
+   PLATFORM (shared) [category: Organizational]
+   ========= */
+
+Table agency {
+  id             int [pk, increment]
+  name           text
+  type           text // city, county, state, school, special district
+  timezone       text
+  created_at     timestamp
+  updated_at     timestamp
+  Note: 'Core entity for multi-tenancy, akin to Government Entity'
+}
+
+Table department {
+  id         int [pk, increment]
+  agency_id  int [not null, ref: > agency.id]
+  name       text
+}
+
+Table user_account {
+  id         int [pk, increment]
+  agency_id  int [not null, ref: > agency.id]
+  email      text [not null, unique]
+  full_name  text
+  is_active  boolean
+  created_at timestamp
+  updated_at timestamp
+  Note: 'Represents Government User and Employee'
+}
+
+Table role {
+  id     int [pk, increment]
+  code   text [unique]
+  name   text
+  scope  text // global|agency|suite|module|department
+}
+
+Table permission {
+  id          int [pk, increment]
+  code        text [unique]
+  description text
+}
+
+Table role_permission {
+  role_id       int [not null, ref: > role.id]
+  permission_id int [not null, ref: > permission.id]
+
+  indexes {
+    (role_id, permission_id) [pk]
+  }
+
+  Note: 'Role-permission join table with composite PK'
+}
+
+Table user_role {
+  id          int [pk, increment]
+  user_id     int [not null, ref: > user_account.id]
+  role_id     int [not null, ref: > role.id]
+  scope_type  text // agency|suite|module|department|project
+  scope_id    int
+}
+
+Table product_suite {
+  id         int [pk, increment]
+  code       text [unique] // EAM, BP, FIN, PLC, PRO, RT, ERM, or module codes
+  name       text
+  parent_id  int [ref: > product_suite.id] // For hierarchical suite-module structure
+  Note: 'Merged suite and module for simplified modularity'
+}
+
+Table address {
+  id          int [pk, increment]
+  line1       text
+  line2       text
+  city        text
+  state       text
+  postal_code text
+  country     text
+}
+
+Table location {
+  id          int [pk, increment]
+  address_id  int [ref: > address.id]
+  latitude    numeric
+  longitude   numeric
+  gis_geom    json // WKT/GeoJSON as needed
+}
+
+Table document {
+  id          int [pk, increment]
+  agency_id   int [ref: > agency.id]
+  title       text
+  kind        text // pdf, doc, image, template
+  storage_uri text
+  created_by  int [ref: > user_account.id]
+  created_at  timestamp
+}
+
+Table attachment {
+  id           int [pk, increment]
+  document_id  int [not null, ref: > document.id]
+  object_type  text
+  object_id    int
+}
+
+Table notification {
+  id          int [pk, increment]
+  user_id     int [not null, ref: > user_account.id]
+  channel     text // inapp, email
+  title       text
+  body        text
+  action_url  text
+  is_read     boolean
+  created_at  timestamp
+}
+
+Table audit_log {
+  id           int [pk, increment]
+  actor_id     int [ref: > user_account.id]
+  action       text
+  entity_type  text
+  entity_id    int
+  at           timestamp
+  changes      json
+}
+
+Table task {
+  id           int [pk, increment]
+  title        text
+  status       text // open, in_progress, done, blocked
+  due_date     date
+  assignee_id  int [ref: > user_account.id]
+  source_type  text // work_order, solicitation, permit, invoice, etc.
+  source_id    int
+  created_at   timestamp
+}
+
+Table tag {
+  id   int [pk, increment]
+  name text [unique]
+}
+
+Table object_tag {
+  object_type text
+  object_id   int
+  tag_id      int [ref: > tag.id]
+
+  indexes {
+    (object_type, object_id, tag_id) [pk]
+    object_type // For scalable queries across types
+  }
+}
+
+Table portal_settings {
+  id          int [pk, increment]
+  agency_id   int [unique, ref: > agency.id]
+  portal_type text // citizen, vendor
+  enabled     boolean
+  features    json // e.g., {"public_lists": true, "permits": true}
+  created_at  timestamp
+  Note: 'Merged citizen and vendor portal settings for simplicity'
+}
+
+Table payment {
+  id           int [pk, increment]
+  agency_id    int [ref: > agency.id]
+  source_type  text // permit_application, bill, invoice, license
+  source_id    int
+  amount       numeric
+  paid_at      timestamp
+  method       text
+  status       text // pending, paid, refunded
+  Note: 'Generalized payment table merging plc_payment and supporting cross-suite sources; links to Receivable'
+}
+
+/* =========
+   PRO: Procurement & Contracts [category: Procurement]
+   ========= */
+
+Table vendor {
+  id            int [pk, increment]
+  legal_name    text
+  contact_email text
+  contact_phone text
+  address_id    int [ref: > address.id]
+  is_emergency  boolean
+  created_at    timestamp
+  type          text // vendor, supplier, contractor [merged for simplicity]
+  Note: 'Unified Vendor/Supplier/Contractor'
+}
+
+Table vendor_subscription {
+  vendor_id  int [ref: > vendor.id]
+  agency_id  int [ref: > agency.id]
+  created_at timestamp
+
+  indexes { (vendor_id, agency_id) [pk] }
+}
+
+Table certification {
+  id           int [pk, increment]
+  vendor_id    int [not null, ref: > vendor.id]
+  kind         text // DBE, MBE, WBE, etc.
+  verified     boolean
+  issuer       text
+  cert_number  text
+  expires_at   date
+}
+
+Table category_code {
+  id          int [pk, increment]
+  system      text // NIGP|NAICS|UNSPSC
+  code        text
+  description text
+}
+
+Table vendor_category {
+  vendor_id         int [ref: > vendor.id]
+  category_code_id  int [ref: > category_code.id]
+
+  indexes { (vendor_id, category_code_id) [pk] }
+}
+
+Table vendor_list {
+  id         int [pk, increment]
+  agency_id  int [ref: > agency.id]
+  name       text
+  is_public  boolean
+}
+
+Table vendor_list_member {
+  vendor_list_id int [ref: > vendor_list.id]
+  vendor_id      int [ref: > vendor.id]
+
+  indexes { (vendor_list_id, vendor_id) [pk] }
+}
+
+Table solicitation {
+  id            int [pk, increment]
+  agency_id     int [ref: > agency.id]
+  department_id int [ref: > department.id]
+  title         text
+  status        text // draft, open, closed, awarded, cancelled
+  open_at       timestamp
+  close_at      timestamp
+  category_set  text // code system used
+  created_by    int [ref: > user_account.id]
+}
+
+Table solicitation_code {
+  solicitation_id  int [ref: > solicitation.id]
+  category_code_id int [ref: > category_code.id]
+
+  indexes { (solicitation_id, category_code_id) [pk] }
+}
+
+Table bid_response {
+  id               int [pk, increment]
+  solicitation_id  int [ref: > solicitation.id]
+  vendor_id        int [ref: > vendor.id]
+  status           text // draft, submitted, withdrawn
+  submitted_at     timestamp
+  total_amount     numeric
+  score            numeric [note: 'Evaluation score for bid']
+  evaluator_id     int [ref: > user_account.id]
+  evaluation_notes text
+  Note: 'Enhanced for bid evaluation and scoring documentation'
+}
+
+Table addendum {
+  id               int [pk, increment]
+  solicitation_id  int [ref: > solicitation.id]
+  title            text
+  published_at     timestamp
+  description      text
+}
+
+Table solicitation_question {
+  id               int [pk, increment]
+  solicitation_id  int [ref: > solicitation.id]
+  vendor_id        int [ref: > vendor.id]
+  content          text
+  response_text    text
+  responded_at     timestamp
+}
+
+Table contract {
+  id               int [pk, increment]
+  agency_id        int [ref: > agency.id]
+  vendor_id        int [ref: > vendor.id] // Links to Contractor
+  solicitation_id  int [ref: > solicitation.id]
+  title            text
+  status           text // draft, active, expired, closed
+  start_date       date
+  end_date         date
+  value_total      numeric
+  change_details   json [note: 'For Contract Change, merged for simplicity']
+}
+
+Table contract_checklist {
+  id          int [pk, increment]
+  contract_id int [ref: > contract.id]
+  name        text
+}
+
+Table contract_checklist_item {
+  id            int [pk, increment]
+  checklist_id  int [ref: > contract_checklist.id]
+  title         text
+  status        text
+  assignee_id   int [ref: > user_account.id]
+}
+
+/* =========
+   FIN: ERP Core (Enhanced with Payroll Support) [category: Financial]
+   ========= */
+
+Table gl_account {
+  id        int [pk, increment]
+  agency_id int [ref: > agency.id]
+  code      text
+  name      text
+  type      text // asset, liability, equity, revenue, expense
+  Note: 'Chart of Accounts equivalent'
+}
+
+Table journal_entry {
+  id          int [pk, increment]
+  agency_id   int [ref: > agency.id]
+  date        date
+  description text
+  status      text // draft, posted
+  created_by  int [ref: > user_account.id]
+}
+
+Table journal_line {
+  id               int [pk, increment]
+  journal_entry_id int [ref: > journal_entry.id]
+  gl_account_id    int [ref: > gl_account.id]
+  debit            numeric
+  credit           numeric
+  project_code     text
+  fund_code        text
+  Note: 'Supports Fund Balance tracking'
+}
+
+Table purchase_order {
+  id         int [pk, increment]
+  agency_id  int [ref: > agency.id]
+  vendor_id  int [ref: > vendor.id]
+  status     text // draft, approved, closed
+  total      numeric
+  created_at timestamp
+  amendment_details json [note: 'Merged PO Amendment']
+}
+
+Table po_item {
+  id                int [pk, increment]
+  purchase_order_id int [ref: > purchase_order.id]
+  description       text
+  quantity          numeric
+  unit_price        numeric
+  gl_account_id     int [ref: > gl_account.id]
+  Note: 'Purchase Line Item'
+}
+
+Table invoice {
+  id         int [pk, increment]
+  agency_id  int [ref: > agency.id]
+  vendor_id  int [ref: > vendor.id]
+  po_id      int [ref: > purchase_order.id]
+  date       date
+  due_date   date
+  amount     numeric
+  status     text // draft, approved, paid
+  Note: 'Links to Receivable'
+}
+
+Table employee {
+  id int [pk, increment]
+  agency_id int [ref: > agency.id]
+  user_account_id int [ref: > user_account.id] // Link to platform users for HR integration
+  department_id int [ref: > department.id]
+  hire_date date
+  position text
+  salary numeric
+  status text // active, terminated
+  tax_id text [note: 'For compliance and tax reporting']
+  benefits_eligibility boolean [default: false]
+  Note: 'Core employee data for payroll and HR; part of Workforce Plan'
+}
+
+Table payroll_run {
+  id int [pk, increment]
+  agency_id int [ref: > agency.id]
+  period_start date
+  period_end date
+  run_date date
+  status text // draft, processed, paid
+  total_amount numeric
+  created_by int [ref: > user_account.id]
+  Note: 'Batch processing for payroll runs'
+}
+
+Table payroll_detail {
+  id int [pk, increment]
+  payroll_run_id int [ref: > payroll_run.id]
+  employee_id int [ref: > employee.id]
+  gross_pay numeric
+  deductions numeric
+  net_pay numeric
+  gl_account_id int [ref: > gl_account.id] // Integrate with ERP for posting
+  indexes { (payroll_run_id, employee_id) [unique] } // Retain uniqueness without PK
+  Note: 'Line items for each employee in a run, with surrogate ID for easier referencing'
+}
+
+Table deduction_type {
+  id int [pk, increment]
+  code text [unique] // tax, insurance, retirement
+  description text
+  is_percentage boolean
+  rate numeric
+  Note: 'Types of deductions for payroll'
+}
+
+Table employee_deduction {
+  employee_id int [ref: > employee.id]
+  deduction_type_id int [ref: > deduction_type.id]
+  amount numeric
+  indexes { (employee_id, deduction_type_id) [pk] }
+  Note: 'Employee-specific deductions'
+}
+
+Table tax_jurisdiction {
+  id int [pk, increment]
+  agency_id int [ref: > agency.id]
+  jurisdiction_name text // federal, state, local
+  tax_rate numeric
+  effective_from date
+  effective_to date
+  Note: 'For compliance in payroll tax calculations, per government ERP best practices; supports Tax entity'
+}
+
+Table payroll_tax {
+  payroll_detail_id int [ref: > payroll_detail.id] // Link to payroll lines via surrogate ID
+  tax_jurisdiction_id int [ref: > tax_jurisdiction.id]
+  tax_amount numeric
+  calculated_at timestamp
+  indexes { (payroll_detail_id, tax_jurisdiction_id) [pk] }
+  Note: 'Automated tax calculations for compliance'
+}
+
+/* =========
+   B&P: Budget & Performance [category: Financial/Procurement]
+   ========= */
+
+Table budget_version {
+  id          int [pk, increment]
+  agency_id   int [ref: > agency.id]
+  fiscal_year int
+  kind        text // operating, capital, workforce
+  status      text // draft, proposed, adopted
+  created_at  timestamp
+  proposal_details json [note: 'Merged Budget Proposal for simplicity']
+}
+
+Table budget_line {
+  id                int [pk, increment]
+  budget_version_id int [ref: > budget_version.id]
+  department_id     int [ref: > department.id]
+  fund_code         text
+  account_id        int [ref: > gl_account.id]
+  amount            numeric
+  description       text
+  amendment_details json [note: 'Merged Budget Amendment']
+  project_id        int [ref: > project.id] // New cross-link to Organizational Project
+  Note: 'Budget Line Item with enhanced connections'
+}
+
+Table performance_measure {
+  id        int [pk, increment]
+  agency_id int [ref: > agency.id]
+  name      text
+  unit      text
+  target    numeric
+  current   numeric
+}
+
+/* =========
+   PLC: Permitting & Licensing [category: Constituent]
+   ========= */
+
+Table applicant {
+  id         int [pk, increment]
+  kind       text // person, business, contractor
+  name       text
+  email      text
+  phone      text
+  address_id int [ref: > address.id]
+  Note: 'Represents Applicant/Constituent'
+}
+
+Table permit_application {
+  id            int [pk, increment]
+  agency_id     int [ref: > agency.id]
+  applicant_id  int [ref: > applicant.id]
+  type          text
+  status        text // draft, submitted, in_review, approved, issued, closed
+  submitted_at  timestamp
+  total_fees    numeric
+  paid          boolean
+  Note: 'Permit entity'
+}
+
+Table review_step {
+  id                    int [pk, increment]
+  permit_application_id int [ref: > permit_application.id]
+  name                  text
+  status                text // pending, approved, rejected
+  assignee_id           int [ref: > user_account.id]
+  decided_at            timestamp
+}
+
+Table plc_inspection {
+  id                    int [pk, increment]
+  permit_application_id int [ref: > permit_application.id]
+  inspection_type       text
+  scheduled_for         timestamp
+  inspector_id          int [ref: > user_account.id]
+  status                text // scheduled, passed, failed, no_show
+}
+
+/* =========
+   EAM: Enterprise Asset Management [category: Infrastructure]
+   ========= */
+
+Table asset {
+  id              int [pk, increment]
+  agency_id       int [ref: > agency.id]
+  name            text
+  asset_type      text // fixed, infra [merged Fixed Asset/Infra Asset]
+  parent_asset_id int [ref: > asset.id]
+  location_id     int [ref: > location.id]
+  condition       text
+}
+
+Table work_order {
+  id            int [pk, increment]
+  agency_id     int [ref: > agency.id]
+  asset_id      int [ref: > asset.id]
+  description   text
+  status        text // open, scheduled, in_progress, done
+  priority      text
+  scheduled_for timestamp
+  due_date      date
+  created_by    int [ref: > user_account.id]
+  assigned_to   int [ref: > user_account.id]
+  vendor_id     int [ref: > vendor.id] // New link to Contractor
+  material_plan json [note: 'Merged Material Plan for simplicity']
+}
+
+Table eam_inspection {
+  id            int [pk, increment]
+  asset_id      int [ref: > asset.id]
+  work_order_id int [ref: > work_order.id]
+  type          text
+  status        text
+  inspected_at  timestamp
+  result        text
+  scenario_details json [note: 'For EAM Scenario integration']
+}
+
+Table work_log {
+  id            int [pk, increment]
+  work_order_id int [ref: > work_order.id]
+  user_id       int [ref: > user_account.id]
+  hours         numeric
+  labor_cost    numeric
+  notes         text
+  worked_at     date
+  type          text // labor, materials, equipment, others [merged logs]
+  Note: 'Unified Labor/Materials/Equipment/Others Log'
+}
+
+Table material_usage {
+  id            int [pk, increment]
+  work_order_id int [ref: > work_order.id]
+  item_name     text
+  quantity      numeric
+  unit_cost     numeric
+  Note: 'Specific to materials, but integrated via work_log type'
+}
+
+/* =========
+   ERM / Utility Billing (Enhanced for Penalty Automation) [category: Constituent/Financial]
+   ========= */
+
+Table customer_account {
+  id                 int [pk, increment]
+  agency_id          int [ref: > agency.id]
+  account_number     text [unique]
+  name               text
+  service_address_id int [ref: > address.id]
+  mailing_address_id int [ref: > address.id]
+  email              text
+  phone              text
+  Note: 'Unified Customer Account/Utility Customer'
+}
+
+Table service_meter {
+  id           int [pk, increment]
+  account_id   int [ref: > customer_account.id]
+  meter_number text
+  meter_type   text // water, wastewater, electric
+  install_date date
+  status       text
+}
+
+Table meter_read {
+  id       int [pk, increment]
+  meter_id int [ref: > service_meter.id]
+  read_at  timestamp
+  value    numeric
+  source   text // manual, AMI
+  Note: 'Suitable for time-series extension (e.g., TimescaleDB) for billing cycles'
+}
+
+Table bill {
+  id           int [pk, increment]
+  account_id   int [ref: > customer_account.id]
+  period_start date
+  period_end   date
+  amount_due   numeric
+  due_date     date
+  status       text // draft, issued, paid, delinquent
+  delinquency_date date [note: 'Date when bill becomes delinquent']
+  penalty_amount numeric [default: 0, note: 'Automatically calculated penalty']
+  interest_rate numeric [note: 'Rate for interest on overdue amounts']
+}
+
+Table bill_line {
+  id          int [pk, increment]
+  bill_id     int [ref: > bill.id]
+  description text
+  quantity    numeric
+  unit_price  numeric
+  amount      numeric
+}
+
+Table service_order {
+  id            int [pk, increment]
+  account_id    int [ref: > customer_account.id]
+  order_type    text // connect, disconnect, meter swap, investigation
+  status        text
+  scheduled_for timestamp
+  created_at    timestamp
+  work_order_id int [ref: > work_order.id] // link to EAM
+  case_id       int [ref: > case.id] // New link to Operational Case
+}
+
+Table bill_adjustment {
+  id            int [pk, increment]
+  bill_id       int [ref: > bill.id]
+  adjustment_type text // penalty, interest, discount
+  amount        numeric
+  applied_at    timestamp
+  rule_details  json [note: 'JSON for rule-based automation, e.g., {"type": "delinquency_threshold", "value": 30, "rate": 0.05}']
+  Note: 'Merged penalty and rule tables for simplified automation'
+}
+
+Table case {
+  id          int [pk, increment]
+  agency_id   int [ref: > agency.id]
+  type        text // operational case
+  status      text
+  description text
+  created_at  timestamp
+  Note: 'Added for Operational category support'
+}
+
+/* =========
+   R&T: Reporting & Publications (Enhanced with Compliance) [category: Organizational/Financial]
+   ========= */
+
+Table report {
+  id         int [pk, increment]
+  agency_id  int [ref: > agency.id]
+  title      text
+  model_key  text
+  published  boolean
+  url        text
+  created_at timestamp
+}
+
+Table story {
+  id           int [pk, increment]
+  agency_id    int [ref: > agency.id]
+  title        text
+  published_at timestamp
+  url          text
+}
+
+Table compliance_report {
+  id int [pk, increment]
+  agency_id int [ref: > agency.id]
+  report_type text // MS4, FEMA, water
+  generated_at timestamp
+  status text // draft, submitted
+  linked_entity_type text // asset, meter, bill, payroll_run, etc.
+  linked_entity_id int
+  document_id int [ref: > document.id]
+  Note: 'Automated compliance reporting, integrated with other suites for regulatory needs'
+}
+
+/* =========
+   Additional Cross-Domain Entities [category: Organizational]
+   ========= */
+
+Table project {
+  id          int [pk, increment]
+  agency_id   int [ref: > agency.id]
+  name        text
+  status      text
+  start_date  date
+  end_date    date
+  budget_id   int [ref: > budget_version.id] // Link to Budget for integration
+  Note: 'Added for Project entity in Organizational domain'
+}
+
+Table workforce_plan {
+  id          int [pk, increment]
+  agency_id   int [ref: > agency.id]
+  fiscal_year int
+  details     json // Employee projections, etc.
+  Note: 'Integrated with Employee and Budget for Workforce Plan'
+}
+
+/* =========
+   AGENTS STUDIO: AI-Powered Automation Platform [category: AI/Automation]
+   ========= */
+
+Table agent {
+  id                int [pk, increment]
+  agency_id         int [not null, ref: > agency.id]
+  name              text [not null]
+  description       text
+  type              text // assistant, automation, workflow, inspector
+  status            text [default: 'active'] // active, inactive, testing, archived
+  model_config      json // LLM settings, temperature, max_tokens, etc.
+  system_prompt     text // Agent's core instructions and behavior
+  capabilities      json // List of enabled features/permissions
+  created_by        int [ref: > user_account.id]
+  updated_by        int [ref: > user_account.id]
+  created_at        timestamp
+  updated_at        timestamp
+  version           int [default: 1]
+  parent_agent_id   int [ref: > agent.id] // For agent inheritance/templates
+  is_template       boolean [default: false]
+  deployment_status text // draft, staged, production
+  Note: 'Core AI agent configuration for automated workflows and assistance'
+}
+
+Table agent_skill {
+  id               int [pk, increment]
+  agent_id         int [not null, ref: > agent.id]
+  name             text [not null]
+  description      text
+  type             text // query, action, analysis, decision
+  skill_config     json // Skill-specific parameters and settings
+  priority         int [default: 0]
+  enabled          boolean [default: true]
+  required_tools   json // List of tool IDs required for this skill
+  created_at       timestamp
+  indexes {
+    agent_id
+  }
+  Note: 'Modular skills that agents can execute'
+}
+
+Table agent_task {
+  id               int [pk, increment]
+  agent_id         int [not null, ref: > agent.id]
+  user_id          int [ref: > user_account.id]
+  title            text [not null]
+  description      text
+  status           text [default: 'pending'] // pending, running, completed, failed, cancelled
+  priority         text // low, medium, high, urgent
+  task_type        text // inspection, approval, analysis, generation, validation
+  input_data       json // Parameters and context for the task
+  output_data      json // Results and artifacts from task execution
+  error_details    json // Error information if task failed
+  started_at       timestamp
+  completed_at     timestamp
+  created_at       timestamp
+  execution_time   int // milliseconds
+  retry_count      int [default: 0]
+  parent_task_id   int [ref: > agent_task.id] // For subtasks
+  scheduled_for    timestamp // For scheduled tasks
+  indexes {
+    agent_id
+    status
+    created_at
+  }
+  Note: 'Individual tasks executed by agents'
+}
+
+Table agent_conversation {
+  id               int [pk, increment]
+  agent_id         int [not null, ref: > agent.id]
+  user_id          int [not null, ref: > user_account.id]
+  title            text
+  status           text [default: 'active'] // active, paused, completed, archived
+  context_data     json // Conversation context and state
+  created_at       timestamp
+  updated_at       timestamp
+  last_message_at  timestamp
+  message_count    int [default: 0]
+  total_tokens     int [default: 0]
+  indexes {
+    agent_id
+    user_id
+    updated_at
+  }
+  Note: 'Conversation sessions between users and agents'
+}
+
+Table agent_message {
+  id                int [pk, increment]
+  conversation_id   int [not null, ref: > agent_conversation.id]
+  role              text [not null] // user, assistant, system, tool
+  content           text
+  metadata          json // Additional message data, citations, etc.
+  tool_calls        json // Tool invocations and results
+  token_count       int
+  created_at        timestamp
+  message_index     int // Order within conversation
+  parent_message_id int [ref: > agent_message.id] // For threaded messages
+  indexes {
+    conversation_id
+    created_at
+  }
+  Note: 'Individual messages within agent conversations'
+}
+
+Table agent_toolset {
+  id               int [pk, increment]
+  agency_id        int [ref: > agency.id]
+  name             text [not null]
+  description      text
+  category         text // data_access, api_integration, document_processing, automation
+  is_global        boolean [default: false] // Available to all agencies
+  created_at       timestamp
+  Note: 'Collections of tools that can be assigned to agents'
+}
+
+Table agent_tool {
+  id               int [pk, increment]
+  toolset_id       int [ref: > agent_toolset.id]
+  name             text [not null]
+  description      text
+  type             text // function, api, database, file_system
+  endpoint         text // API endpoint or function name
+  auth_config      json // Authentication requirements
+  input_schema     json // Expected input parameters
+  output_schema    json // Expected output format
+  rate_limit       int // Calls per minute
+  enabled          boolean [default: true]
+  created_at       timestamp
+  Note: 'Individual tools/functions agents can use'
+}
+
+Table agent_toolset_assignment {
+  agent_id         int [not null, ref: > agent.id]
+  toolset_id       int [not null, ref: > agent_toolset.id]
+  assigned_at      timestamp
+  assigned_by      int [ref: > user_account.id]
+  indexes {
+    (agent_id, toolset_id) [pk]
+  }
+  Note: 'Links agents to available toolsets'
+}
+
+Table agent_entity {
+  id               int [pk, increment]
+  agent_id         int [not null, ref: > agent.id]
+  entity_type      text [not null] // permit, asset, contract, invoice, etc.
+  entity_id        int [not null]
+  relationship     text // owner, reviewer, processor, monitor
+  permissions      json // Read, write, approve, etc.
+  created_at       timestamp
+  indexes {
+    agent_id
+    (entity_type, entity_id)
+  }
+  Note: 'Links agents to specific business entities they can access'
+}
+
+Table agent_document {
+  id               int [pk, increment]
+  agent_id         int [not null, ref: > agent.id]
+  document_id      int [not null, ref: > document.id]
+  purpose          text // training, reference, template, output
+  embedding_id     text // Reference to vector DB
+  processed_at     timestamp
+  metadata         json // Extracted metadata, tags, etc.
+  indexes {
+    agent_id
+    document_id
+  }
+  Note: 'Documents associated with agents for training or reference'
+}
+
+Table agent_embedding {
+  id               int [pk, increment]
+  source_type      text [not null] // document, message, entity
+  source_id        int [not null]
+  embedding_model  text // text-embedding-ada-002, etc.
+  embedding_vector json // Vector representation (or stored in vector DB)
+  dimension        int // Vector dimensions
+  metadata         json // Additional searchable metadata
+  created_at       timestamp
+  indexes {
+    (source_type, source_id)
+  }
+  Note: 'Vector embeddings for semantic search and retrieval'
+}
+
+Table agent_feedback {
+  id               int [pk, increment]
+  agent_id         int [not null, ref: > agent.id]
+  user_id          int [not null, ref: > user_account.id]
+  task_id          int [ref: > agent_task.id]
+  message_id       int [ref: > agent_message.id]
+  rating           int // 1-5 stars
+  feedback_type    text // accuracy, helpfulness, speed, quality
+  comment          text
+  created_at       timestamp
+  indexes {
+    agent_id
+    user_id
+  }
+  Note: 'User feedback and ratings for agent performance'
+}
+
+Table agent_metric {
+  id               int [pk, increment]
+  agent_id         int [not null, ref: > agent.id]
+  metric_date      date
+  total_tasks      int [default: 0]
+  completed_tasks  int [default: 0]
+  failed_tasks     int [default: 0]
+  avg_execution_ms int
+  total_tokens     int [default: 0]
+  total_cost       numeric
+  user_count       int [default: 0]
+  avg_rating       numeric
+  accuracy_score   numeric // Based on feedback and validation
+  indexes {
+    agent_id
+    metric_date
+  }
+  Note: 'Daily aggregated metrics for agent performance tracking'
+}
+
+Table agent_workflow {
+  id               int [pk, increment]
+  agency_id        int [not null, ref: > agency.id]
+  name             text [not null]
+  description      text
+  trigger_type     text // manual, scheduled, event, webhook
+  trigger_config   json // Cron expression, event filters, etc.
+  workflow_steps   json // Sequential or parallel steps with agent tasks
+  status           text [default: 'active'] // active, paused, archived
+  created_by       int [ref: > user_account.id]
+  created_at       timestamp
+  last_run_at      timestamp
+  next_run_at      timestamp
+  Note: 'Multi-step workflows orchestrating multiple agents'
+}
+
+Table agent_workflow_run {
+  id               int [pk, increment]
+  workflow_id      int [not null, ref: > agent_workflow.id]
+  triggered_by     int [ref: > user_account.id]
+  trigger_source   text // manual, schedule, event
+  status           text // running, completed, failed, cancelled
+  input_data       json
+  output_data      json
+  started_at       timestamp
+  completed_at     timestamp
+  execution_log    json // Detailed step-by-step execution log
+  indexes {
+    workflow_id
+    status
+    started_at
+  }
+  Note: 'Individual executions of agent workflows'
+}
+
+Table agent_permission {
+  id               int [pk, increment]
+  agent_id         int [not null, ref: > agent.id]
+  permission_type  text // suite, module, feature, data
+  permission_code  text // Specific permission identifier
+  scope_type       text // agency, department, user_group
+  scope_id         int
+  granted_by       int [ref: > user_account.id]
+  granted_at       timestamp
+  expires_at       timestamp
+  indexes {
+    agent_id
+    permission_type
+  }
+  Note: 'Granular permissions controlling agent access to platform features'
+}
+
+Table agent_audit_log {
+  id               int [pk, increment]
+  agent_id         int [not null, ref: > agent.id]
+  action           text [not null] // task_executed, tool_called, entity_accessed, decision_made
+  actor_type       text // agent, user, system
+  actor_id         int
+  target_type      text // Entity type affected
+  target_id        int // Entity ID affected
+  action_details   json // Detailed action information
+  result           text // success, failure, partial
+  timestamp        timestamp
+  ip_address       text
+  session_id       text
+  indexes {
+    agent_id
+    timestamp
+    action
+  }
+  Note: 'Complete audit trail of all agent actions for compliance and debugging'
+}
+
+Table agent_template {
+  id               int [pk, increment]
+  category         text // inspection, approval, reporting, analysis
+  name             text [not null]
+  description      text
+  base_config      json // Default agent configuration
+  required_tools   json // Minimum required toolsets
+  sample_prompts   json // Example use cases and prompts
+  is_official      boolean [default: false] // OpenGov-provided vs custom
+  created_by       int [ref: > user_account.id]
+  created_at       timestamp
+  usage_count      int [default: 0]
+  Note: 'Pre-configured agent templates for common government workflows'
+}

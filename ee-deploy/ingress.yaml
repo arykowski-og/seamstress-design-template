@@ -1,0 +1,38 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: seamstress-design-pr-${PR_NUMBER}
+  labels:
+    app: seamstress-design
+  annotations:
+    alb.ingress.kubernetes.io/group.name: platform-dev-eks
+    alb.ingress.kubernetes.io/group.order: "-${PR_NUMBER}"
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-west-2:774331681746:certificate/6fd6546d-8814-4fa0-af99-e137b35da93f
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
+    alb.ingress.kubernetes.io/healthcheck-path: /seamstress-design/
+    alb.ingress.kubernetes.io/healthcheck-port: "80"
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "5"
+    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/success-codes: "200"
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: "2"
+    external-dns.alpha.kubernetes.io/hostname: seamstress-design-pr-${PR_NUMBER}.development.opengov.zone
+spec:
+  ingressClassName: alb
+  rules:
+    - host: seamstress-design-pr-${PR_NUMBER}.development.opengov.zone
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: seamstress-design-pr-${PR_NUMBER}
+                port:
+                  number: 80
+

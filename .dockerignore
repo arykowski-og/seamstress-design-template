@@ -1,0 +1,94 @@
+# Dependencies
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build outputs (will be generated in Docker)
+dist
+dist-ssr
+build
+out
+*.local
+
+# Testing
+coverage
+.nyc_output
+test-results
+playwright-report
+playwright/.cache
+
+# Environment variables
+.env
+.env.local
+.env.production.local
+.env.development.local
+.env.test.local
+*.env
+
+# Editor directories
+.vscode
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Vite
+.vite
+vite.config.ts.timestamp-*
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# CI/CD
+.github
+
+# Documentation (optional - remove if you want docs in image)
+docs
+*.md
+!README.md
+
+# Scripts (optional - remove if you need them)
+scripts
+
+# Storybook
+storybook-static
+*storybook.log
+
+# Build cache
+.cache
+.parcel-cache
+.turbo
+.vercel
+*.tsbuildinfo
+.rollup.cache
+
+# Screenshots
+screenshots
+
+# Temporary files
+*.tmp
+*.temp
+.tmp
+.temp
+tmp/
+temp/
+
+# Build analysis
+stats.json
+bundle-stats.html
+report.html
+
+# Netlify
+.netlify
+

@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: seamstress-design
+  labels:
+    app: seamstress-design
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: seamstress-design
+  template:
+    metadata:
+      labels:
+        app: seamstress-design
+    spec:
+      containers:
+        - name: seamstress-design
+          image: 774331681746.dkr.ecr.us-west-2.amazonaws.com/seamstress-design:${PR_TAG}
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          livenessProbe:
+            httpGet:
+              path: /seamstress-design/
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /seamstress-design/
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+

@@ -1,0 +1,68 @@
+version: v2beta1
+name: seamstress-design
+
+vars:
+  IMAGE: seamstress-design
+  TAG: ${PR_TAG}
+  NAMESPACE: ${DEVSPACE_NAME:-default}
+  REGISTRY: 774331681746.dkr.ecr.us-west-2.amazonaws.com
+  # PR_NUMBER is passed via --var from workflow, available as ${PR_NUMBER} in patches
+
+# 1. BASE DEPLOYMENT (Clean, no patches here)
+deployments:
+  app:
+    kubectl:
+      manifests:
+        - ./ee-deploy/deploy.yaml
+        - ./ee-deploy/service.yaml
+        - ./ee-deploy/ingress.yaml
+      kustomize: false
+
+# 2. PROFILES SECTION
+profiles:
+  - name: development
+    patches:
+      # This operation adds the 'patches' block to your 'app' deployment
+      - op: add
+        path: deployments.app.kubectl.patches
+        value:
+          # --- These are the K8s patches we fixed earlier ---
+          
+          # Patch 1: Update Image (MUST have target)
+          - op: replace
+            path: spec.template.spec.containers[0].image
+            value: ${REGISTRY}/${IMAGE}:${TAG}
+            target:
+              kind: Deployment
+              name: seamstress-design
+          
+          # Note: Service and Ingress names now use ${PR_NUMBER} directly in YAML files
+          # No patches needed for names, host, service reference, or external-dns annotation
+          
+          # Patch 2: Update Namespace for Deployment
+          # - op: replace
+          #   path: metadata.namespace
+          #   value: ${NAMESPACE}
+          #   target:
+          #     kind: Deployment
+          #     name: seamstress-design
+          
+          # # Patch 3: Update Namespace for Service
+          # - op: replace
+          #   path: metadata.namespace
+          #   value: ${NAMESPACE}
+          #   target:
+          #     kind: Service
+          #     name: seamstress-design
+
+# 3. DEV CONFIGURATION (Already implicitly part of development workflow)
+dev:
+  default:
+    labelSelector:
+      app: seamstress-design
+    ports:
+      - port: "3000:80"
+
+hooks:
+  - command: echo "Deploying to ${NAMESPACE}"
+    events: ["after:deploy:app"]

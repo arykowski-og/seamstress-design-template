@@ -1,0 +1,113 @@
+name: Ephemeral Environment Deployment
+
+# Documentation: See ee-deploy/README.md for detailed usage instructions
+
+on:
+  pull_request:
+    types: [labeled, unlabeled, closed]
+
+env:
+  KUBE_CONTEXT: development
+  AWS_REGION: us-west-2
+
+permissions:
+  id-token: write
+  contents: read
+  packages: write
+  pull-requests: write
+
+jobs:
+  deploy-ee:
+    name: Deploy Ephemeral Environment
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.labels.*.name, 'deploy-ee')
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # - name: Docker meta
+      #   id: metadata
+      #   uses: OpenGov/gha-container-metadata@v1.0.2
+      #   with:
+      #     image-name: ${{ secrets.ECR_REGISTRY }}/${{ github.event.repository.name }}
+      #     pr: true
+
+      - name: EE Prepare
+        uses: OpenGov/gha-garden-prepare@main
+        with:
+          github-token: "${{ secrets.GIT_HUB_ACCESS_TOKEN_ENG_BOT_READER }}"
+          teleport-token: github-garden-ci
+          tsh-version: 17.7.3
+
+      - name: Install DevSpace
+        run: |
+          curl -L -o devspace "https://github.com/loft-sh/devspace/releases/latest/download/devspace-linux-amd64" && sudo install -c -m 0755 devspace /usr/local/bin
+
+      - name: Deploy to Ephemeral Namespace
+        run: |
+          REPO_NAME=$(basename $GITHUB_WORKSPACE)
+          NAMESPACE=$REPO_NAME-pr-${{ github.event.pull_request.number }}
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          if [ -z "$NAMESPACE" ]; then
+            echo "Namespace is empty. Exiting."
+            exit 1
+          fi
+          # Replace PR_NUMBER placeholder in manifest files
+          sed -i "s/\${PR_NUMBER}/$PR_NUMBER/g" ee-deploy/ingress.yaml ee-deploy/service.yaml
+          devspace use namespace $NAMESPACE
+          devspace deploy --var PR_TAG=pr-${{ github.event.pull_request.number }} --var PR_NUMBER=${{ github.event.pull_request.number }} --profile development
+
+      - name: Comment PR with deployment info
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const repoName = context.repo.repo;
+            const namespace = `${repoName}-pr-${{ github.event.pull_request.number }}`;
+            const ingressUrl = `https://seamstress-design-pr-${{ github.event.pull_request.number }}.development.opengov.zone`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🚀 Ephemeral environment deployed!
+            
+            **Namespace:** \`${namespace}\`
+            **URL:** ${ingressUrl}
+            
+            The application is being deployed to the Kubernetes cluster.`
+            });
+
+  cleanup-ee:
+    name: Cleanup Ephemeral Environment
+    runs-on: ubuntu-latest
+    if: |
+      (github.event.action == 'unlabeled' && contains(github.event.label.name, 'deploy-ee')) ||
+      github.event.action == 'closed'
+    steps:
+      - name: EE Prepare
+        uses: OpenGov/gha-garden-prepare@main
+        with:
+          github-token: "${{ secrets.GIT_HUB_ACCESS_TOKEN_ENG_BOT_READER }}"
+          teleport-token: github-garden-ci
+          tsh-version: 17.7.3
+
+      - name: Delete namespace
+        run: |
+          REPO_NAME=${{ github.event.repository.name }}
+          NAMESPACE=$REPO_NAME-pr-${{ github.event.pull_request.number }}
+          kubectl delete namespace $NAMESPACE --ignore-not-found=true
+
+      - name: Comment PR with cleanup info
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const repoName = context.repo.repo;
+            const namespace = `${repoName}-pr-${{ github.event.pull_request.number }}`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🧹 Ephemeral environment cleaned up!
+            
+            The namespace \`${namespace}\` has been deleted.`
+            });

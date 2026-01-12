@@ -1,0 +1,121 @@
+name: PR Node CI
+
+on:
+  pull_request:
+    branches:
+      - '*'
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  project-key: cloud-platform
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    name: NPM Build and Test
+    runs-on: ubuntu-latest
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+      - name: Configure NPM auth token
+        run: |
+          echo "@opengov:registry=https://registry.npmjs.org/" >> "$NPM_CONFIG_USERCONFIG"
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NAVNEET_TEST_NPM }}" >> "$NPM_CONFIG_USERCONFIG"
+      - name: Install dependencies
+        run: npm ci
+      - name: Build application
+        run: BASE_PATH=/seamstress-design npx vite build --mode production
+      - name: Test
+        run: npm test -- --exclude '**/KnowledgeService.test.ts'
+        env:
+          CI: true
+
+  build-image:
+    name: Npm Build and Push Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: build
+    outputs:
+      tag-semver: ${{ steps.metadata.outputs.tag-semver }}
+      tag-sha: ${{ steps.metadata.outputs.tag-sha }}
+      image-tags: ${{ steps.metadata.outputs.image-tags }}
+      tags: ${{ steps.metadata.outputs.tags }}
+      tags-additional: ${{ steps.metadata.outputs.tags-additional }}
+      tags-csv: ${{ steps.metadata.outputs.tags-csv }}
+      tag-canonical: ${{ steps.metadata.outputs.tag-canonical }}
+      version-canonical: ${{ steps.metadata.outputs.version-canonical }}
+      labels: ${{ steps.metadata.outputs.labels }}
+      image-name: ${{ steps.login-registry.outputs.registry }}/${{ github.event.repository.name }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Login to OpenGov AWS ECR
+        id: login-registry
+        uses: OpenGov/gha-container-registry-setup@v3.2.2
+        with:
+          aws-access-key-id-dev: ${{ secrets.ECR_AWS_SECRET_ID_DEV }}
+          aws-secret-access-key-dev: ${{ secrets.ECR_AWS_SECRET_KEY_DEV }}
+          aws-access-key-id-prod: ${{ secrets.ECR_AWS_SECRET_ID_PROD }}
+          aws-secret-access-key-prod: ${{ secrets.ECR_AWS_SECRET_KEY_PROD }}
+      - name: Docker meta
+        id: metadata
+        uses: OpenGov/gha-container-metadata@v1.4.2
+        with:
+          image-name: ${{ steps.login-registry.outputs.registry }}/${{ github.event.repository.name }}
+          pr: true
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        env:
+          NPM_TOKEN: ${{ secrets.NAVNEET_TEST_NPM }}
+        with:
+          node-version: '20'
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+      - name: Configure NPM auth token
+        run: |
+          echo "@opengov:registry=https://registry.npmjs.org/" >> "$NPM_CONFIG_USERCONFIG"
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NAVNEET_TEST_NPM }}" >> "$NPM_CONFIG_USERCONFIG"
+      - name: Create .npmrc for Docker build
+        run: |
+          cp "$NPM_CONFIG_USERCONFIG" .npmrc
+      - name: Build and push
+        uses: docker/build-push-action@v4
+        with:
+          push: true
+          tags: ${{ steps.metadata.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          secret-files: |
+            "npmrc=.npmrc"
+      - name: Pull Image
+        run: |
+          docker pull ${{ steps.metadata.outputs.tag-canonical }}
+      - name: Container Analysis
+        uses: OpenGov/gha-container-analysis@main
+        with:
+          image: ${{ steps.metadata.outputs.tag-canonical }}
+          project-key: ${{ env.project-key }}
+          orca-api-token: ${{ secrets.ORCA_SECURITY_API_TOKEN }}
+          fail-on-violation: false
+
