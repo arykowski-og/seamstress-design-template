@@ -10,6 +10,7 @@ export default defineConfig({
     },
   },
   server: {
+    allowedHosts: true,
     deps: {
       inline: ['@mui/x-data-grid'],
     },
