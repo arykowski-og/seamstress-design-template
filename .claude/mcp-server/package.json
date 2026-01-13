@@ -1,0 +1,12 @@
+{
+  "name": "opengov-mcp-servers",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "OpenGov MCP servers for Claude CLI (Aha! integration)",
+  "scripts": {
+    "start:aha": "node aha-server.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  }
+}
