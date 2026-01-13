@@ -33,12 +33,53 @@ Required environment variables:
 
 ### Setup
 
-The MCP server is automatically registered with Claude CLI when Aha! credentials are provided. It works via stdio transport.
-
 ```bash
-# Install dependencies
-npm install
-
-# Register with Claude CLI
 claude mcp add "aha-tools" -- node /path/to/.claude/mcp-server/aha-server.mjs
 ```
+
+---
+
+## Ask Product GPT MCP Server
+
+The `ask-product-gpt-server.mjs` file provides Claude with access to OpenGov product expert assistants powered by OpenAI:
+
+### Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `ask_product_expert` | Ask a product-specific expert about OpenGov products |
+| `list_product_experts` | List all available product expert assistants |
+
+### Available Product Experts
+
+| Code | Product |
+|------|---------|
+| `FIN` | Financials |
+| `GAB` | Government App Builder |
+| `BP` | Budgeting & Performance |
+| `PRO` | Procurement & Contract Management |
+| `EAM` | Enterprise Asset Management |
+| `PLC` | Permitting & Licensing |
+
+### Environment Variables
+
+Required environment variables:
+- `OPENAI_API_KEY_MAIN` - OpenAI API key for FIN, GAB, BP, PRO, EAM products
+- `OPENAI_API_KEY_PLC` - OpenAI API key for PLC product
+
+### Setup
+
+```bash
+claude mcp add "ask-product-gpt" -- node /path/to/.claude/mcp-server/ask-product-gpt-server.mjs
+```
+
+---
+
+## Installation
+
+```bash
+# Install dependencies (required for all MCP servers)
+npm install
+```
+
+The MCP servers are automatically registered with Claude CLI when the appropriate credentials are provided. They work via stdio transport.
