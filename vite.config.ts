@@ -91,6 +91,7 @@ export default defineConfig({
     }
   },
   server: {
+    allowedHosts: true,
     hmr: {
       overlay: false
     },
