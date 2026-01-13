@@ -75,11 +75,45 @@ claude mcp add "ask-product-gpt" -- node /path/to/.claude/mcp-server/ask-product
 
 ---
 
+## OG Product Strategy MCP Server (Remote)
+
+This is a remote MCP server hosted at `https://og-product-hub.vercel.app/mcp` that provides product strategy and PMF (Product-Market Fit) dashboard tools.
+
+### Configuration
+
+This server is configured in `.claude/settings.json` as a remote MCP server:
+
+```json
+{
+  "mcpServers": {
+    "og-product-strategy": {
+      "type": "remote",
+      "url": "https://og-product-hub.vercel.app/mcp",
+      "enabled": true,
+      "oauth": false,
+      "headers": {
+        "Authorization": "Bearer {env:PMF_API_KEY}"
+      },
+      "timeout": 10000
+    }
+  }
+}
+```
+
+### Environment Variables
+
+Required environment variables:
+- `PMF_API_KEY` - API key for the OG Product Hub
+
+---
+
 ## Installation
 
 ```bash
-# Install dependencies (required for all MCP servers)
+# Install dependencies (required for local MCP servers)
 npm install
 ```
 
-The MCP servers are automatically registered with Claude CLI when the appropriate credentials are provided. They work via stdio transport.
+The local MCP servers are automatically registered with Claude CLI when the appropriate credentials are provided. They work via stdio transport.
+
+The remote MCP server (og-product-strategy) is configured in `.claude/settings.json` and connects via HTTP.
